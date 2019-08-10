@@ -9,26 +9,26 @@ import com.example.common.Constants;
 
 public class ExtractErrorFn extends DoFn<String, String> {
 
-	private static final Logger LOG = LoggerFactory.getLogger(ExtractErrorFn.class);
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
+  private static final Logger LOG = LoggerFactory.getLogger(ExtractErrorFn.class);
+  /**
+   * 
+   */
+  private static final long serialVersionUID = 1L;
 
-	@ProcessElement
-	public void processElement(ProcessContext c) {
-		LOG.debug("extract error transform is started");
-		try {
-			String[] lines = StringUtils.split(c.element(), Constants.TOKENIZER_PATTERN);
+  @ProcessElement
+  public void processElement(ProcessContext c) {
+    LOG.debug("extract error transform is started");
+    try {
+      String[] lines = StringUtils.split(c.element(), Constants.TOKENIZER_PATTERN);
 
-			for (String line : lines) {
-				if (line.contains(Constants.ERROR_PATTERN)) {
-					c.output(line);
-				}
-			}
-		} catch (Exception e) {
-			LOG.error("ExtractError transform failed:" + e.getLocalizedMessage(), e);
-		}
-		LOG.debug("extract error transform is finished");
-	}
+      for (String line : lines) {
+        if (line.contains(Constants.ERROR_PATTERN)) {
+          c.output(line);
+        }
+      }
+    } catch (Exception e) {
+      LOG.error("ExtractError transform failed:" + e.getLocalizedMessage(), e);
+    }
+    LOG.debug("extract error transform is finished");
+  }
 }

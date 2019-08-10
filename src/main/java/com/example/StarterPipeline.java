@@ -58,38 +58,37 @@ import com.example.subprocess.FormatAsTextFn;
  * --stagingLocation=<STAGING_LOCATION_IN_CLOUD_STORAGE> --runner=DataflowRunner
  */
 public class StarterPipeline {
-	private static final Logger LOG = LoggerFactory.getLogger(StarterPipeline.class);
+  private static final Logger LOG = LoggerFactory.getLogger(StarterPipeline.class);
 
-	public static void runErrorCount(MyOptions options) {
+  public static void runErrorCount(MyOptions options) {
 
-		LOG.debug("error count pipeline is started");
+    LOG.debug("error count pipeline is started");
+    try {
+      Pipeline p = Pipeline.create(options);
+      PCollection<PubsubMessage> collections = p
+          .apply(PubsubIO.readMessages().fromTopic(options.getTopicName()));
 
-		try {
-			Pipeline pipeLine = Pipeline.create(options);
-			PCollection<PubsubMessage> collections = pipeLine
-					.apply(PubsubIO.readMessages().fromTopic(options.getTopicName()));
+      collections.apply("ProcessServerLogdata", ParDo.of(new ConvertPubsubMsgToString()))
+          .apply("FindError", ParDo.of(new ExtractErrorFn()))
+          .apply(Window.<String>into(new GlobalWindows())
+              .triggering(Repeatedly.forever(AfterProcessingTime.pastFirstElementInPane()
+                  .plusDelayOf(Duration.standardSeconds(60))))
+              .accumulatingFiredPanes().withAllowedLateness(Duration.standardDays(1)))
+          .apply(Count.globally()).apply("FormatResult", MapElements.via(new FormatAsTextFn()))
+          .apply("WriteCount", TextIO.write().to(EnvironmentConfig.OUTPUT_FILE_PATH)
+              .withWindowedWrites().withNumShards(1));
 
-			collections.apply("ProcessServerLogdata", ParDo.of(new ConvertPubsubMsgToString()))
-					.apply("FindError", ParDo.of(new ExtractErrorFn()))
-					.apply(Window.<String>into(new GlobalWindows())
-							.triggering(Repeatedly.forever(AfterProcessingTime.pastFirstElementInPane()
-									.plusDelayOf(Duration.standardSeconds(60))))
-							.accumulatingFiredPanes().withAllowedLateness(Duration.standardDays(1)))
-					.apply(Count.globally()).apply("FormatResult", MapElements.via(new FormatAsTextFn()))
-					.apply("WriteCount", TextIO.write().to(EnvironmentConfig.OUTPUT_FILE_PATH).withWindowedWrites()
-							.withNumShards(1));
+      p.run();
+    } catch (Exception e) {
+      LOG.error("error in running pipeline:" + e.getLocalizedMessage(), e);
+    }
+    LOG.debug("error count pipeline is finished");
 
-			pipeLine.run();
-		} catch (Exception e) {
-			LOG.error("error in running pipeline:" + e.getLocalizedMessage(), e);
-		}
-		LOG.debug("error count pipeline is finished");
+  }
 
-	}
-
-	public static void main(String[] args) {
-		PipelineOptionsFactory.register(MyOptions.class);
-		MyOptions options = PipelineOptionsFactory.fromArgs(args).withValidation().as(MyOptions.class);
-		runErrorCount(options);
-	}
+  public static void main(String[] args) {
+    PipelineOptionsFactory.register(MyOptions.class);
+    MyOptions options = PipelineOptionsFactory.fromArgs(args).withValidation().as(MyOptions.class);
+    runErrorCount(options);
+  }
 }
